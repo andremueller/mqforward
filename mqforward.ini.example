@@ -15,3 +15,5 @@ db = test
 username = test
 password = password
 tagsAttributes = key1,key2
+caCerts = ~/.certs/cacert.pem
+scheme = https

@@ -1,7 +1,10 @@
 package main
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
+	"io/ioutil"
 	"net/url"
 	"strings"
 	"time"
@@ -27,6 +30,8 @@ type InfluxDBConf struct {
 	UDP            bool
 	Debug          string
 	TagsAttributes []string
+	CaCerts        []string
+	Scheme         string
 }
 
 type InfluxDBClient struct {
@@ -42,20 +47,39 @@ type InfluxDBClient struct {
 	commandChan chan string
 }
 
+func LoadCertPool(conf InfluxDBConf) *x509.CertPool {
+	var certPool = x509.NewCertPool()
+	for _, path := range conf.CaCerts {
+		path = ExpandPath(path)
+		log.Debugf("Loading certificate %s", path)
+		raw, err := ioutil.ReadFile(path)
+		if err != nil {
+			log.Errorf("Error while loading certificate %s", path)
+			log.Fatal(err)
+		}
+		certPool.AppendCertsFromPEM(raw)
+	}
+
+	return certPool
+}
+
 func NewInfluxDBClient(conf InfluxDBConf, ifChan chan Message, commandChan chan string) (*InfluxDBClient, error) {
-	host := fmt.Sprintf("http://%s:%d", conf.Hostname, conf.Port)
+	host := fmt.Sprintf("%s://%s:%d", conf.Scheme, conf.Hostname, conf.Port)
 	log.Infof("influxdb host: %s", host)
 
 	_, err := url.Parse(host)
 	if err != nil {
 		return nil, err
 	}
+
+	certPool := LoadCertPool(conf)
+
 	// Make client
 	con, err := influxdb.NewHTTPClient(influxdb.HTTPConfig{
 		Addr:     host,
 		Username: conf.UserName,
 		Password: conf.Password,
-	})
+		TLSConfig: &tls.Config{RootCAs: certPool}})
 	if err != nil {
 		return nil, err
 	}
