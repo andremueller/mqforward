@@ -48,7 +48,11 @@ type InfluxDBClient struct {
 }
 
 func LoadCertPool(conf InfluxDBConf) *x509.CertPool {
-	var certPool = x509.NewCertPool()
+	certPool, err := x509.SystemCertPool()
+	if err != nil {
+		log.Errorf("Error while loading system cert pool")
+		log.Error(err)
+	}
 	for _, path := range conf.CaCerts {
 		path = ExpandPath(path)
 		log.Debugf("Loading certificate %s", path)
